@@ -54,7 +54,10 @@ func LoadRepo(path string) (*Repository, error) {
 }
 
 func (repo *Repository) StoreObject(obj GitObject) error {
-	hash := obj.Hash()
+	hash, err := obj.Hash()
+	if err != nil {
+		return err
+	}
 	objDir := filepath.Join(repo.GitDir, "objects", hash[:2])
 	objPath := filepath.Join(objDir, hash[2:])
 
@@ -83,8 +86,11 @@ func (repo *Repository) StoreObject(obj GitObject) error {
 	if err != nil {
 		return err
 	}
-
-	content := fmt.Sprintf("%s %d\x00%s", obj.Type(), len(obj.Content()), obj.Content())
+	bytes, err := obj.Content()
+	if err != nil {
+		return err
+	}
+	content := fmt.Sprintf("%s %d\x00%s", obj.Type(), len(bytes), bytes)
 	_, err = writer.Write([]byte(content))
 	return err
 }
@@ -199,9 +205,13 @@ func (repo *Repository) Add(filePath string) error {
 			break
 		}
 	}
+	hash, err := blob.Hash()
+	if err != nil {
+		return err
+	}
 	entries = append(entries, IndexEntry{
 		Path:    filePath,
-		Hash:    blob.Hash(),
+		Hash:    hash,
 		Mode:    mode,
 		Size:    info.Size(),
 		ModTime: info.ModTime(),

@@ -83,5 +83,9 @@ func invokeLoadObject() {
 		return
 	}
 	fmt.Printf("Object Type: %s\n\n", obj.Type())
-	fmt.Printf("Object Content: \n\n%s\n", obj.Content())
+	bytes, err := obj.Content()
+	if err != nil {
+		return
+	}
+	fmt.Printf("Object Content: \n\n%s\n", bytes)
 }
