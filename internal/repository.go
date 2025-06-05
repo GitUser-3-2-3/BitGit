@@ -2,6 +2,7 @@ package objects
 
 import (
 	"compress/zlib"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -138,4 +139,73 @@ func (repo *Repository) LoadObject(hash string) (GitObject, error) {
 	default:
 		return nil, fmt.Errorf("what even is that type? %s", objType)
 	}
+}
+
+// ReadIndex Staging Area
+func (repo *Repository) ReadIndex() ([]IndexEntry, error) {
+	indexPath := filepath.Join(repo.GitDir, "index")
+	data, err := os.ReadFile(indexPath)
+	if err != nil {
+		return nil, err
+	}
+	var entries []IndexEntry
+	if err = json.Unmarshal(data, &entries); err != nil {
+		return nil, err
+	}
+	return entries, nil
+}
+
+// WriteIndex Staging Area
+func (repo *Repository) WriteIndex(entries []IndexEntry) error {
+	indexPath := filepath.Join(repo.GitDir, "index")
+
+	data, err := json.Marshal(entries)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(indexPath, data, 0644)
+}
+
+// Add Adds a file to staging area with proper staus tracking
+func (repo *Repository) Add(filePath string) error {
+	fullPath := filepath.Join(repo.WorkDir, filePath)
+
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		return fmt.Errorf("%sError::%s file not found: %s", colorRed,
+			colorReset, filePath)
+	}
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		return err
+	}
+	blob := &Blob{Data: data}
+	if err = repo.StoreObject(blob); err != nil {
+		return err
+	}
+	// Determine file mode
+	var mode = "100644"
+	if info.Mode()&0111 != 0 {
+		mode = "100755"
+	}
+	// update index
+	entries, err := repo.ReadIndex()
+	if err != nil {
+		return err
+	}
+	for i, entry := range entries {
+		if entry.Path == filePath {
+			entries = append(entries[:i], entries[i+1:]...)
+			break
+		}
+	}
+	entries = append(entries, IndexEntry{
+		Path:    filePath,
+		Hash:    blob.Hash(),
+		Mode:    mode,
+		Size:    info.Size(),
+		ModTime: info.ModTime(),
+		Staged:  true,
+	})
+	return repo.WriteIndex(entries)
 }
