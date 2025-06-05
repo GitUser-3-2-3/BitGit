@@ -13,6 +13,6 @@ const (
 
 type GitObject interface {
 	Type() string
-	Content() []byte
-	Hash() string
+	Content() ([]byte, error)
+	Hash() (string, error)
 }
