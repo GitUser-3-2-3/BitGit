@@ -38,6 +38,8 @@ func main() {
 		invokeLoadObject()
 	case "add":
 		invokeAdd()
+	case "commit":
+		invokeCommit()
 	default:
 		fmt.Printf("%sNot a recognised command%s\n", colorRed, colorReset)
 		fmt.Println("Usage: git <command> [args...]")
@@ -99,4 +101,25 @@ func invokeAdd() {
 		return
 	}
 	fmt.Printf("Added %s\n", os.Args[2])
+}
+
+func invokeCommit() {
+	if len(os.Args) < 4 || os.Args[2] != "-m" {
+		fmt.Println("Usage: git commit -m <message>")
+		return
+	}
+	repo, err := objects.LoadRepo(".")
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	message := os.Args[3]
+	author := "User <user@example.com>"
+
+	hash, err := repo.Commit(message, author)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	fmt.Printf("Created commit %s\n", hash[:8])
 }

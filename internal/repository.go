@@ -341,7 +341,7 @@ func (repo *Repository) GetHEAD() (string, error) {
 	refPath := filepath.Join(repo.GitDir, head[5:])
 
 	if _, err := os.Stat(refPath); os.IsNotExist(err) {
-		return "", err // no commits yet
+		return "", nil // no commits yet
 	}
 	refData, err := os.ReadFile(refPath)
 	if err != nil {
