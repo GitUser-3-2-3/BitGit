@@ -6,16 +6,8 @@ import (
 	"os"
 )
 
-const (
-	colorRed   = "\033[31m"
-	colorReset = "\033[0m"
-)
-
-func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: git <command> [args...]")
-		fmt.Printf(`
-Commands: 
+var commands = `
+Commands:
 	-init 
 	-add 
 	-commit 
@@ -24,7 +16,17 @@ Commands:
 	-status 
 	-branch 
 	-switch
-`)
+`
+
+const (
+	colorRed   = "\033[31m"
+	colorReset = "\033[0m"
+)
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: git <command> [args...]")
+		fmt.Printf(commands)
 		return
 	}
 	command := os.Args[1]
@@ -34,20 +36,12 @@ Commands:
 		invokeInit()
 	case "load-object":
 		invokeLoadObject()
+	case "add":
+		invokeAdd()
 	default:
 		fmt.Printf("%sNot a recognised command%s\n", colorRed, colorReset)
 		fmt.Println("Usage: git <command> [args...]")
-		fmt.Printf(`
-Commands: 
-	-init 
-	-add 
-	-commit 
-	-log 
-	-checkout 
-	-status 
-	-branch 
-	-switch
-`)
+		fmt.Printf(commands)
 		return
 	}
 }
@@ -88,4 +82,21 @@ func invokeLoadObject() {
 		return
 	}
 	fmt.Printf("Object Content: \n\n%s\n", bytes)
+}
+
+func invokeAdd() {
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: git add <file>")
+		return
+	}
+	repo, err := objects.LoadRepo(".")
+	if err != nil {
+		fmt.Printf("%sError:%s %v\n", colorRed, colorReset, err)
+		return
+	}
+	if err = repo.Add(os.Args[2]); err != nil {
+		fmt.Printf("%sError:%s %v\n", colorRed, colorReset, err)
+		return
+	}
+	fmt.Printf("Added %s\n", os.Args[2])
 }

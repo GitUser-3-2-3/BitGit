@@ -7,7 +7,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strings"
+	"time"
 )
 
 type Repository struct {
@@ -142,6 +145,21 @@ func (repo *Repository) LoadObject(hash string) (GitObject, error) {
 	switch objType {
 	case ObjectTypeBlob:
 		return &Blob{Data: content, hash: hash}, nil
+	case ObjectTypeTree:
+		var entries []TreeEntry
+
+		if err = json.Unmarshal(content, &entries); err != nil {
+			return nil, err
+		}
+		return &Tree{Entries: entries, hash: hash}, nil
+	case ObjectTypeCommit:
+		var commit Commit
+
+		if err = json.Unmarshal(content, &commit); err != nil {
+			return nil, err
+		}
+		commit.hash = hash
+		return &commit, nil
 	default:
 		return nil, fmt.Errorf("what even is that type? %s", objType)
 	}
@@ -218,4 +236,153 @@ func (repo *Repository) Add(filePath string) error {
 		Staged:  true,
 	})
 	return repo.WriteIndex(entries)
+}
+
+type DirNode struct {
+	Name     string
+	Children map[string]*DirNode
+	Files    []IndexEntry
+}
+
+func (repo *Repository) CreateTreeFromIndex() (*Tree, error) {
+	entries, err := repo.ReadIndex()
+	if err != nil {
+		return nil, err
+	}
+
+	// initialize directory tree structure
+	root := &DirNode{Name: "",
+		Children: make(map[string]*DirNode),
+		Files:    []IndexEntry{},
+	}
+
+	// organize files into directory structure
+	for _, entry := range entries {
+		parts := strings.Split(filepath.ToSlash(entry.Path), "/")
+		var current = root
+
+		// navigate directory structure
+		for _, part := range parts[:len(parts)-1] {
+			if current.Children[part] == nil {
+				current.Children[part] = &DirNode{
+					Name:     part,
+					Children: make(map[string]*DirNode),
+					Files:    []IndexEntry{},
+				}
+			}
+			current = current.Children[part]
+		}
+		current.Files = append(current.Files, entry)
+	}
+	return repo.createTreeFromDirNode(root)
+}
+
+func (repo *Repository) createTreeFromDirNode(root *DirNode) (*Tree, error) {
+	var treeEntries []TreeEntry
+
+	for _, file := range root.Files {
+		treeEntries = append(treeEntries, TreeEntry{
+			Mode: file.Mode,
+			Name: filepath.Base(file.Path),
+			Hash: file.Hash,
+			Type: ObjectTypeBlob,
+		})
+	}
+
+	// recursively process subdirectories
+	var dirNames []string
+	for name := range root.Children {
+		dirNames = append(dirNames, name)
+	}
+	sort.Strings(dirNames)
+
+	for _, name := range dirNames {
+		child := root.Children[name]
+
+		childTree, err := repo.createTreeFromDirNode(child)
+		if err != nil {
+			return nil, err
+		}
+		// store the child tree
+		if err := repo.StoreObject(childTree); err != nil {
+			return nil, err
+		}
+		childTreeHash, err := childTree.Hash()
+		if err != nil {
+			return nil, err
+		}
+		treeEntries = append(treeEntries, TreeEntry{
+			Mode: "040000",
+			Name: name,
+			Hash: childTreeHash,
+			Type: ObjectTypeTree,
+		})
+	}
+	// sort all entries by name (Git practice)
+	slices.SortFunc(treeEntries, func(a, b TreeEntry) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	tree := &Tree{Entries: treeEntries}
+	return tree, nil
+}
+
+func (repo *Repository) GetHEAD() (string, error) {
+	headPath := filepath.Join(repo.GitDir, "HEAD")
+
+	data, err := os.ReadFile(headPath)
+	if err != nil {
+		return "", err
+	}
+	head := strings.TrimSpace(string(data))
+
+	if !strings.HasPrefix(head, "ref: ") {
+		return head, nil
+	}
+	refPath := filepath.Join(repo.GitDir, head[5:])
+
+	if _, err := os.Stat(refPath); os.IsNotExist(err) {
+		return "", err // no commits yet
+	}
+	refData, err := os.ReadFile(refPath)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(refData)), nil
+}
+
+func (repo *Repository) UpdateRef(branch, hash string) error {
+	refPath := filepath.Join(repo.GitDir, "refs", "heads", branch)
+	return os.WriteFile(refPath, []byte(hash+"\n"), 0644)
+}
+
+func (repo *Repository) Commit(message, author string) (string, error) {
+	tree, err := repo.CreateTreeFromIndex()
+	if err != nil {
+		return "", err
+	}
+	parentHash, err := repo.GetHEAD()
+	if err != nil {
+		return "", err
+	}
+	treeHash, err := tree.Hash()
+	if err != nil {
+		return "", err
+	}
+	commit := &Commit{Tree: treeHash,
+		Parent:    parentHash,
+		Author:    author,
+		Message:   message,
+		Timestamp: time.Now(),
+	}
+	if err = repo.StoreObject(commit); err != nil {
+		return "", err
+	}
+	commitHash, err := commit.Hash()
+	if err != nil {
+		return "", err
+	}
+	if err = repo.UpdateRef("main", commitHash); err != nil {
+		return "", err
+	}
+	return commit.Hash()
 }

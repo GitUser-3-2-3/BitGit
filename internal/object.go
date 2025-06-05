@@ -28,12 +28,6 @@ type IndexEntry struct {
 	Staged  bool      `json:"staged"`
 }
 
-type FileStatus struct {
-	Status string // "added", "modified", "deleted", "untracked"
-	Path   string
-	Staged bool
-}
-
 type GitObject interface {
 	Type() string
 	Content() ([]byte, error)
