@@ -6,10 +6,25 @@ import (
 	"os"
 )
 
+const (
+	colorRed   = "\033[31m"
+	colorReset = "\033[0m"
+)
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: git <command> [args...]")
-		fmt.Println("Commands: init, add, commit, log, checkout, status, branch, switch")
+		fmt.Printf(`
+Commands: 
+	-init 
+	-add 
+	-commit 
+	-log 
+	-checkout 
+	-status 
+	-branch 
+	-switch
+`)
 		return
 	}
 	command := os.Args[1]
@@ -20,9 +35,19 @@ func main() {
 	case "load-object":
 		invokeLoadObject()
 	default:
-		fmt.Println("not a recognised command")
+		fmt.Printf("%sNot a recognised command%s\n", colorRed, colorReset)
 		fmt.Println("Usage: git <command> [args...]")
-		fmt.Println("Commands: init, add, commit, log, checkout, status, branch, switch")
+		fmt.Printf(`
+Commands: 
+	-init 
+	-add 
+	-commit 
+	-log 
+	-checkout 
+	-status 
+	-branch 
+	-switch
+`)
 		return
 	}
 }
