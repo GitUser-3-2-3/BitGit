@@ -386,3 +386,42 @@ func (repo *Repository) Commit(message, author string) (string, error) {
 	}
 	return commit.Hash()
 }
+
+func (repo *Repository) Log(limit int) ([]*Commit, error) {
+	headHash, err := repo.GetHEAD()
+	if err != nil || headHash == "" {
+		return nil, fmt.Errorf("%sError::%s no commits founds", colorRed,
+			colorReset)
+	}
+	var commits []*Commit
+	currentHash := headHash
+
+	for len(commits) < limit && currentHash != "" {
+		obj, err := repo.LoadObject(currentHash)
+		if err != nil {
+			return nil, err
+		}
+		commit, ok := obj.(*Commit)
+		if !ok {
+			break
+		}
+		commits = append(commits, commit)
+		currentHash = commit.Parent
+	}
+
+	return commits, nil
+}
+
+func (repo *Repository) GetCurrentBranch() (string, error) {
+	headPath := filepath.Join(repo.GitDir, "HEAD")
+
+	data, err := os.ReadFile(headPath)
+	if err != nil {
+		return "", err
+	}
+	head := strings.TrimSpace(string(data))
+	if strings.HasPrefix(head, "ref: refs/heads/") {
+		return head[16:], nil
+	}
+	return "HEAD", nil
+}
