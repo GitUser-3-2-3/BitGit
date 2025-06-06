@@ -40,6 +40,8 @@ func main() {
 		invokeAdd()
 	case "commit":
 		invokeCommit()
+	case "log":
+		invokeLog()
 	default:
 		fmt.Printf("%sNot a recognised command%s\n", colorRed, colorReset)
 		fmt.Println("Usage: git <command> [args...]")
@@ -114,7 +116,7 @@ func invokeCommit() {
 		return
 	}
 	message := os.Args[3]
-	author := "User <user@example.com>"
+	author := "User <parth@gmail.com>"
 
 	hash, err := repo.Commit(message, author)
 	if err != nil {
@@ -122,4 +124,27 @@ func invokeCommit() {
 		return
 	}
 	fmt.Printf("Created commit %s\n", hash[:8])
+}
+
+func invokeLog() {
+	repo, err := objects.LoadRepo(".")
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	commits, err := repo.Log(10)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	for _, commit := range commits {
+		commitHash, err := commit.Hash()
+		if err != nil {
+			return
+		}
+		fmt.Printf("commit %s\n", commitHash)
+		fmt.Printf("Author: %s\n", commit.Author)
+		fmt.Printf("Date: %s\n", commit.Timestamp.Format("Mon Jan 2 15:04:05 2006"))
+		fmt.Printf("\n    %s\n\n", commit.Message)
+	}
 }
