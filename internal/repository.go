@@ -360,6 +360,9 @@ func (repo *Repository) Commit(message, author string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if err = repo.StoreObject(tree); err != nil {
+		return "", err
+	}
 	parentHash, err := repo.GetHEAD()
 	if err != nil {
 		return "", err
